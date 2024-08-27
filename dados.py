@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 def func(pct, allvals):
     absolute = int(pct / 100.0 * sum(allvals))
-    return "{:.0f}%".format(pct)
+    return "{:.0f}%\n({:d})".format(pct, absolute)
 
 try:
     # Conectar ao banco de dados PostgreSQL
@@ -13,7 +13,7 @@ try:
         password="",
         host="localhost",
         port="5432",
-        database=""  # Nome do banco de dados
+        database="baseDeDados"  
     )
     cursor = connection.cursor()
     print("Conexão com o banco de dados estabelecida com sucesso!")
@@ -47,62 +47,92 @@ try:
 
         wedges, texts, autotexts = plt.pie(
             df_regiao['percentual'], 
-            labels=df_regiao['regiao_onde_mora'], 
-            autopct=lambda pct: func(pct, df_regiao['quantidade']),
+            labels=None,  # Remover os rótulos diretamente no gráfico
+            autopct=lambda pct: func(pct, df_regiao['quantidade']),  # Exibir tanto porcentagem quanto quantidade
             startangle=140, 
             pctdistance=0.85, 
-            labeldistance=1.1,
-            colors=colors
+            labeldistance=1.2,
+            colors=colors,
+            wedgeprops={'edgecolor': 'black'},
+            radius=1.2,  # Aumenta o tamanho do gráfico
         )
 
-        for text, wedge in zip(texts, wedges):
-            text.set_color(wedge.get_facecolor())
+        # Criar um círculo no meio para transformar o gráfico de pizza em rosca
+        centre_circle = plt.Circle((0,0),0.70,fc='white')
+        fig = plt.gcf()
+        fig.gca().add_artist(centre_circle)
+
+        plt.legend(wedges, df_regiao['regiao_onde_mora'], title="Região Onde Mora", loc="center left", bbox_to_anchor=(1, 0, 0.5, 1))
 
         plt.title('Quantidade e Porcentagem de Registros por Região Onde Mora (Top 10)')
         plt.axis('equal')
+        plt.tight_layout()
         plt.show()
 
     elif escolha == '2':
         # Análise de Gênero
         query_genero = """
-        SELECT genero, COUNT(*) AS quantidade
-        FROM baseDeDados  
-        GROUP BY genero
-        ORDER BY quantidade DESC;
+        SELECT 
+            COALESCE(genero, 'NULL') AS genero, 
+            COUNT(*) AS quantidade,
+            (COUNT(*) * 100.0 / SUM(COUNT(*)) OVER()) AS percentual
+        FROM 
+            baseDeDados
+        GROUP BY 
+            genero
+        ORDER BY 
+            quantidade DESC;
         """
         df_genero = pd.read_sql_query(query_genero, connection)
 
-        # Substituir None por "Não especificado" na coluna de gênero
-        df_genero['genero'] = df_genero['genero'].fillna('Não especificado')
+        # Exibir os dados de Gênero
+        print("Quantidade e porcentagem de registros por gênero:")
+        print(df_genero)
 
-        # Filtrar categorias pequenas para não sobrecarregar o gráfico
-        df_genero = df_genero[df_genero['genero'] != 'Não especificado']
+        # Definir cores personalizadas, adicione mais cores se necessário
+        cores_personalizadas = ['#ff9999', '#66b3ff', '#99ff99', '#ffcc99']  # Adicionar mais cores se houver mais categorias
 
-        # Calcular a porcentagem de cada gênero
-        df_genero['percentual'] = (df_genero['quantidade'] / df_genero['quantidade'].sum()) * 100
-
-        # Definir cores personalizadas
-        cores_personalizadas = ['#ff9999', '#66b3ff']  # Vermelho, Azul para "Homem" e "Mulher"
+        # Explodir todos os setores ligeiramente
+        explode = [0.05 if genero == 'NULL' else 0 for genero in df_genero['genero']]
 
         plt.figure(figsize=(8, 6))
 
         wedges, texts, autotexts = plt.pie(
             df_genero['percentual'], 
-            labels=df_genero['genero'],  # Exibir rótulos diretamente no gráfico
-            autopct=lambda pct: func(pct, df_genero['quantidade']),
+            labels=None,  # Remover os rótulos diretamente no gráfico
+            autopct=lambda pct: func(pct, df_genero['quantidade']),  # Mostrar porcentagem e quantidade para todas as categorias
             startangle=90,  # Começa em 90 graus para um estilo similar ao exemplo
             colors=cores_personalizadas,
-            wedgeprops={'edgecolor': 'black'}
+            explode=explode,  # Explodir os setores
+            wedgeprops={'edgecolor': 'black'},
+            radius=1.2,  # Aumenta o tamanho do gráfico
         )
 
-        # Ajustar os rótulos de texto
-        for autotext in autotexts:
-            autotext.set_fontsize(14)
-            autotext.set_color('white')
-            autotext.set_weight('bold')
+        # Criar um círculo no meio para transformar o gráfico de pizza em rosca
+        centre_circle = plt.Circle((0,0),0.70,fc='white')
+        fig = plt.gcf()
+        fig.gca().add_artist(centre_circle)
+
+        # Adicionar linhas para rótulos externos em categorias pequenas
+        for i, txt in enumerate(autotexts):
+            pct = df_genero['percentual'].iloc[i]
+            if pct < 1:  # Limite para rótulos pequenos
+                txt.set_position((0, 0))  # Movendo o rótulo para o centro
+                txt.set_fontsize(0)  # Ocultar rótulo pequeno
+                text = f"{df_genero['genero'].iloc[i]}: {func(pct, df_genero['quantidade'])}"
+                plt.annotate(text, xy=wedges[i].center, xytext=(1.35, i*0.15), 
+                             textcoords='data', ha='center', va='center',
+                             bbox=dict(boxstyle="round,pad=0.3", edgecolor="black", facecolor="white"),
+                             arrowprops=dict(arrowstyle="-", color="black"))
+
+        # Adicionar uma legenda separada para evitar sobreposição
+        plt.legend(wedges, df_genero['genero'], title="Gêneros", loc="center left", bbox_to_anchor=(1, 0, 0.5, 1))
 
         # Adicionar título
-        plt.title('Gráfico de gênero', fontsize=16)
+        plt.title('Gráfico de Gênero', fontsize=16)
+
+        plt.axis('equal')  # Assegura que o gráfico seja desenhado como um círculo
+        plt.tight_layout()
         plt.show()
 
     else:
