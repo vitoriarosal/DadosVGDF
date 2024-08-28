@@ -10,7 +10,7 @@ try:
     # Conectar ao banco de dados PostgreSQL
     connection = psycopg2.connect(
         user="postgres",
-        password="",
+        password="Gabinete2024",
         host="localhost",
         port="5432",
         database="baseDeDados"  
@@ -19,10 +19,10 @@ try:
     print("Conexão com o banco de dados estabelecida com sucesso!")
 
     # Solicitar ao usuário qual gráfico ele deseja ver
-    escolha = input("Qual gráfico você deseja ver? (1: Região Onde Mora, 2: Gênero): ")
+    escolha = input("Qual gráfico você deseja ver? (1: Região Onde Mora, 2: Gênero, 3: Ocupação): ")
 
     if escolha == '1':
-        # Análise de Região Onde Mora
+        # Análise de Região Onde Mora - Gráfico de Pizza
         query_regiao = """
         SELECT regiao_onde_mora, COUNT(*) AS quantidade
         FROM baseDeDados  
@@ -70,7 +70,7 @@ try:
         plt.show()
 
     elif escolha == '2':
-        # Análise de Gênero
+        # Análise de Gênero - Gráfico de Barras Horizontais
         query_genero = """
         SELECT 
             COALESCE(genero, 'NULL') AS genero, 
@@ -89,54 +89,51 @@ try:
         print("Quantidade e porcentagem de registros por gênero:")
         print(df_genero)
 
-        # Definir cores personalizadas, adicione mais cores se necessário
-        cores_personalizadas = ['#ff9999', '#66b3ff', '#99ff99', '#ffcc99']  # Adicionar mais cores se houver mais categorias
+        # Gráfico de barras horizontais
+        plt.figure(figsize=(10, 8))
+        plt.barh(df_genero['genero'], df_genero['quantidade'], color='#66b3ff')
+        for index, value in enumerate(df_genero['quantidade']):
+            plt.text(value, index, f'{value} ({df_genero["percentual"].iloc[index]:.1f}%)')
+        plt.xlabel('Quantidade')
+        plt.ylabel('Gênero')
+        plt.title('Quantidade e Porcentagem de Registros por Gênero')
+        plt.tight_layout()
+        plt.show()
 
-        # Explodir todos os setores ligeiramente
-        explode = [0.05 if genero == 'NULL' else 0 for genero in df_genero['genero']]
+    elif escolha == '3':
+        # Análise de Ocupação - Gráfico de Barras Horizontais
+        query_ocupacao = """
+        SELECT ocupacao, COUNT(*) AS quantidade
+        FROM baseDeDados  
+        GROUP BY ocupacao
+        ORDER BY quantidade DESC
+        LIMIT 10;  
+        """
+        df_ocupacao = pd.read_sql_query(query_ocupacao, connection)
 
-        plt.figure(figsize=(8, 6))
+        # Substituir None por "Não especificado" na coluna de ocupação
+        df_ocupacao['ocupacao'] = df_ocupacao['ocupacao'].fillna('Não especificado')
 
-        wedges, texts, autotexts = plt.pie(
-            df_genero['percentual'], 
-            labels=None,  # Remover os rótulos diretamente no gráfico
-            autopct=lambda pct: func(pct, df_genero['quantidade']),  # Mostrar porcentagem e quantidade para todas as categorias
-            startangle=90,  # Começa em 90 graus para um estilo similar ao exemplo
-            colors=cores_personalizadas,
-            explode=explode,  # Explodir os setores
-            wedgeprops={'edgecolor': 'black'},
-            radius=1.2,  # Aumenta o tamanho do gráfico
-        )
+        # Calcular a porcentagem de cada ocupação
+        df_ocupacao['percentual'] = (df_ocupacao['quantidade'] / df_ocupacao['quantidade'].sum()) * 100
 
-        # Criar um círculo no meio para transformar o gráfico de pizza em rosca
-        centre_circle = plt.Circle((0,0),0.70,fc='white')
-        fig = plt.gcf()
-        fig.gca().add_artist(centre_circle)
+        # Exibir os dados de Ocupação
+        print("Dados de Ocupação:")
+        print(df_ocupacao)
 
-        # Adicionar linhas para rótulos externos em categorias pequenas
-        for i, txt in enumerate(autotexts):
-            pct = df_genero['percentual'].iloc[i]
-            if pct < 1:  # Limite para rótulos pequenos
-                txt.set_position((0, 0))  # Movendo o rótulo para o centro
-                txt.set_fontsize(0)  # Ocultar rótulo pequeno
-                text = f"{df_genero['genero'].iloc[i]}: {func(pct, df_genero['quantidade'])}"
-                plt.annotate(text, xy=wedges[i].center, xytext=(1.35, i*0.15), 
-                             textcoords='data', ha='center', va='center',
-                             bbox=dict(boxstyle="round,pad=0.3", edgecolor="black", facecolor="white"),
-                             arrowprops=dict(arrowstyle="-", color="black"))
-
-        # Adicionar uma legenda separada para evitar sobreposição
-        plt.legend(wedges, df_genero['genero'], title="Gêneros", loc="center left", bbox_to_anchor=(1, 0, 0.5, 1))
-
-        # Adicionar título
-        plt.title('Gráfico de Gênero', fontsize=16)
-
-        plt.axis('equal')  # Assegura que o gráfico seja desenhado como um círculo
+        # Gráfico de barras horizontais
+        plt.figure(figsize=(10, 8))
+        plt.barh(df_ocupacao['ocupacao'], df_ocupacao['quantidade'], color='#66b3ff')
+        for index, value in enumerate(df_ocupacao['quantidade']):
+            plt.text(value, index, f'{value} ({df_ocupacao["percentual"].iloc[index]:.1f}%)')
+        plt.xlabel('Quantidade')
+        plt.ylabel('Ocupação')
+        plt.title('Quantidade e Porcentagem de Registros por Ocupação (Top 10)')
         plt.tight_layout()
         plt.show()
 
     else:
-        print("Escolha inválida. Por favor, selecione 1 ou 2.")
+        print("Escolha inválida. Por favor, selecione 1, 2 ou 3.")
 
 except (Exception, psycopg2.Error) as error:
     print("Erro ao conectar ao PostgreSQL:", error)
