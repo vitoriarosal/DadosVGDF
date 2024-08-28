@@ -10,7 +10,7 @@ try:
     # Conectar ao banco de dados PostgreSQL
     connection = psycopg2.connect(
         user="postgres",
-        password="Gabinete2024",
+        password="",
         host="localhost",
         port="5432",
         database="baseDeDados"  
